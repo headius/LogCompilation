@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2009, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2009, 2011, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -30,14 +30,17 @@ public class Phase extends BasicLogEvent {
 
     private final int startNodes;
     private int endNodes;
+    private final int startLiveNodes;
+    private int endLiveNodes;
 
-    Phase(String n, double s, int nodes) {
+    Phase(String n, double s, int nodes, int live) {
         super(s, n);
         startNodes = nodes;
+        startLiveNodes = live;
     }
 
     int getNodes() {
-        return getStartNodes();
+        return getEndNodes() - getStartNodes();
     }
 
     void setEndNodes(int n) {
@@ -54,6 +57,22 @@ public class Phase extends BasicLogEvent {
 
     public int getEndNodes() {
         return endNodes;
+    }
+    /* Number of live nodes added by the phase */
+    int getLiveNodes() {
+        return getEndLiveNodes() - getStartLiveNodes();
+    }
+
+    void setEndLiveNodes(int n) {
+        endLiveNodes = n;
+    }
+
+    public int getStartLiveNodes() {
+        return startLiveNodes;
+    }
+
+    public int getEndLiveNodes() {
+        return endLiveNodes;
     }
 
     @Override

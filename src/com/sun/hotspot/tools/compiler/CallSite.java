@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2009, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2009, 2011, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -37,6 +37,9 @@ public class CallSite {
     private int receiver_count;
     private String reason;
     private List<CallSite> calls;
+    private int endNodes;
+    private int endLiveNodes;
+    private double timeStamp;
 
     CallSite() {
     }
@@ -93,18 +96,22 @@ public class CallSite {
         emit(stream, indent);
         String m = getMethod().getHolder().replace('/', '.') + "::" + getMethod().getName();
         if (getReason() == null) {
-            stream.println("  @ " + getBci() + " " + m + " (" + getMethod().getBytes() + " bytes)");
+            stream.print("  @ " + getBci() + " " + m + " (" + getMethod().getBytes() + " bytes)");
 
         } else {
             if (isCompat()) {
-                stream.println("  @ " + getBci() + " " + m + " " + getReason());
+                stream.print("  @ " + getBci() + " " + m + " " + getReason());
             } else {
-                stream.println("- @ " + getBci() + " " + m +
+                stream.print("- @ " + getBci() + " " + m +
                         " (" + getMethod().getBytes() + " bytes) " + getReason());
             }
         }
+        if (getEndNodes() > 0) {
+            stream.printf(" (end time: %6.4f nodes: %d live: %d)", getTimeStamp(), getEndNodes(), getEndLiveNodes());
+        }
+        stream.println("");
         if (getReceiver() != null) {
-            emit(stream, indent + 3);
+            emit(stream, indent + 4);
             //                 stream.println("type profile " + method.holder + " -> " + receiver + " (" +
             //                                receiver_count + "/" + count + "," + (receiver_count * 100 / count) + "%)");
             stream.println("type profile " + getMethod().getHolder() + " -> " + getReceiver() + " (" +
@@ -180,4 +187,29 @@ public class CallSite {
     public static void setCompat(boolean aCompat) {
         compat = aCompat;
     }
+
+    void setEndNodes(int n) {
+        endNodes = n;
+    }
+
+    public int getEndNodes() {
+        return endNodes;
+    }
+
+    void setEndLiveNodes(int n) {
+        endLiveNodes = n;
+    }
+
+    public int getEndLiveNodes() {
+        return endLiveNodes;
+    }
+
+    void setTimeStamp(double time) {
+        timeStamp = time;
+    }
+
+    public double getTimeStamp() {
+        return timeStamp;
+    }
+
 }

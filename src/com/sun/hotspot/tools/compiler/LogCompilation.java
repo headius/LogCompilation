@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2009, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2009, 2011, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -37,13 +37,13 @@ import org.xml.sax.helpers.*;
 public class LogCompilation extends DefaultHandler implements ErrorHandler, Constants {
 
     public static void usage(int exitcode) {
-        System.out.println("Usage: LogCompilation [ -v ] [ -c ] [ -s ] [ -e | -N ] file1 ...");
+        System.out.println("Usage: LogCompilation [ -v ] [ -c ] [ -s ] [ -e | -n ] file1 ...");
         System.out.println("  -c:   clean up malformed 1.5 xml");
         System.out.println("  -i:   print inlining decisions");
         System.out.println("  -S:   print compilation statistics");
         System.out.println("  -s:   sort events by start time");
         System.out.println("  -e:   sort events by elapsed time");
-        System.out.println("  -N:   sort events by name and start");
+        System.out.println("  -n:   sort events by name and start");
         System.exit(exitcode);
     }
 
@@ -126,7 +126,6 @@ public class LogCompilation extends DefaultHandler implements ErrorHandler, Cons
                 maxattempts = Math.max(maxattempts,c.getAttempts());
                 elapsed += c.getElapsedTime();
                 for (Phase phase : c.getPhases()) {
-                    out.printf("\t%s %6.4f\n", phase.getName(), phase.getElapsedTime());
                     Double v = phaseTime.get(phase.getName());
                     if (v == null) {
                         v = Double.valueOf(0.0);
@@ -138,6 +137,11 @@ public class LogCompilation extends DefaultHandler implements ErrorHandler, Cons
                         v2 = Integer.valueOf(0);
                     }
                     phaseNodes.put(phase.getName(), Integer.valueOf(v2.intValue() + phase.getNodes()));
+                    /* Print phase name, elapsed time, nodes at the start of the phase,
+                       nodes created in the phase, live nodes at the start of the phase,
+                       live nodes added in the phase.
+                    */
+                    out.printf("\t%s %6.4f %d %d %d %d\n", phase.getName(), phase.getElapsedTime(), phase.getStartNodes(), phase.getNodes(), phase.getStartLiveNodes(), phase.getLiveNodes());
                 }
             } else if (e instanceof MakeNotEntrantEvent) {
                 MakeNotEntrantEvent mne = (MakeNotEntrantEvent) e;
