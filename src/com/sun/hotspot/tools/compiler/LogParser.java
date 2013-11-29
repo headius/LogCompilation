@@ -31,11 +31,14 @@ package com.sun.hotspot.tools.compiler;
 
 import java.io.FileReader;
 import java.io.Reader;
+import java.text.NumberFormat;
+import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.Locale;
 import java.util.Stack;
 import javax.xml.parsers.SAXParser;
 import javax.xml.parsers.SAXParserFactory;
@@ -147,6 +150,11 @@ public class LogParser extends DefaultHandler implements ErrorHandler, Constants
     private Stack<Phase> phaseStack = new Stack<Phase>();
     private UncommonTrapEvent currentTrap;
     private Stack<CallSite> late_inline_scope;
+    private NumberFormat numberFormat;
+
+    private LogParser(Locale locale) {
+        numberFormat = NumberFormat.getInstance(locale);
+    }
 
     long parseLong(String l) {
         try {
@@ -170,11 +178,27 @@ public class LogParser extends DefaultHandler implements ErrorHandler, Constants
         }
     }
 
-    public static ArrayList<LogEvent> parse(String file, boolean cleanup) throws Exception {
-        return parse(new FileReader(file), cleanup);
+    public double parseDouble(String d) {
+        try {
+            return numberFormat.parse(d).doubleValue();
+        } catch (ParseException e) {
+            throw new NumberFormatException(e.getMessage());
+        }
     }
 
-    public static ArrayList<LogEvent> parse(Reader reader, boolean cleanup) throws Exception {
+    public int parseInt(String d) {
+        try {
+            return numberFormat.parse(d).intValue();
+        } catch (ParseException e) {
+            throw new NumberFormatException(e.getMessage());
+        }
+    }
+
+    public static ArrayList<LogEvent> parse(String file, boolean cleanup, Locale locale) throws Exception {
+        return parse(new FileReader(file), cleanup, locale);
+    }
+
+    public static ArrayList<LogEvent> parse(Reader reader, boolean cleanup, Locale locale) throws Exception {
         // Create the XML input factory
         SAXParserFactory factory = SAXParserFactory.newInstance();
 
@@ -187,7 +211,7 @@ public class LogParser extends DefaultHandler implements ErrorHandler, Constants
             reader = new LogCleanupReader(reader);
         }
 
-        LogParser log = new LogParser();
+        LogParser log = new LogParser(locale);
         p.parse(new InputSource(reader), log);
 
         // Associate compilations with their NMethods
@@ -266,23 +290,24 @@ public class LogParser extends DefaultHandler implements ErrorHandler, Constants
             Attributes atts) {
         if (qname.equals("phase")) {
             Phase p = new Phase(search(atts, "name"),
-                    Double.parseDouble(search(atts, "stamp")),
-                    Integer.parseInt(search(atts, "nodes", "0")),
-                    Integer.parseInt(search(atts, "live")));
+                    parseDouble(search(atts, "stamp")),
+                    parseInt(search(atts, "nodes", "0")),
+                    parseInt(search(atts, "live", "-1")));
             phaseStack.push(p);
         } else if (qname.equals("phase_done")) {
             Phase p = phaseStack.pop();
-            if (! p.getId().equals(search(atts, "name"))) {
+            final String search = search(atts, "name", p.getId());
+            if (! p.getId().equals(search)) {
                 System.out.println("phase: " + p.getId());
-                throw new InternalError("phase name mismatch");
+                throw new InternalError("phase name mismatch. Expected ["+p.getId()+"] got ["+search+"]");
             }
-            p.setEnd(Double.parseDouble(search(atts, "stamp")));
-            p.setEndNodes(Integer.parseInt(search(atts, "nodes", "0")));
-            p.setEndLiveNodes(Integer.parseInt(search(atts, "live")));
+            p.setEnd(parseDouble(search(atts, "stamp")));
+            p.setEndNodes(parseInt(search(atts, "nodes", "0")));
+            p.setEndLiveNodes(parseInt(search(atts, "live", "-1")));
             compile.getPhases().add(p);
         } else if (qname.equals("task")) {
-            compile = new Compilation(Integer.parseInt(search(atts, "compile_id", "-1")));
-            compile.setStart(Double.parseDouble(search(atts, "stamp")));
+            compile = new Compilation(parseInt(search(atts, "compile_id", "-1")));
+            compile.setStart(parseDouble(search(atts, "stamp")));
             compile.setICount(search(atts, "count", "0"));
             compile.setBCount(search(atts, "backedge_count", "0"));
 
@@ -300,7 +325,7 @@ public class LogParser extends DefaultHandler implements ErrorHandler, Constants
             }
             if (kind.equals("osr")) {
                 compile.setOsr(true);
-                compile.setOsr_bci(Integer.parseInt(search(atts, "osr_bci")));
+                compile.setOsr_bci(parseInt(search(atts, "osr_bci")));
             } else if (kind.equals("c2i")) {
                 compile.setSpecial("--- adapter " + method);
             } else {
@@ -312,7 +337,7 @@ public class LogParser extends DefaultHandler implements ErrorHandler, Constants
         } else if (qname.equals("type")) {
             type(search(atts, "id"), search(atts, "name"));
         } else if (qname.equals("bc")) {
-            bci = Integer.parseInt(search(atts, "bci"));
+            bci = parseInt(search(atts, "bci"));
         } else if (qname.equals("klass")) {
             type(search(atts, "id"), search(atts, "name"));
         } else if (qname.equals("method")) {
@@ -331,40 +356,40 @@ public class LogParser extends DefaultHandler implements ErrorHandler, Constants
             methods.put(id, m);
         } else if (qname.equals("call")) {
             site = new CallSite(bci, method(search(atts, "method")));
-            site.setCount(Integer.parseInt(search(atts, "count", "0")));
+            site.setCount(parseInt(search(atts, "count", "0")));
             String receiver = atts.getValue("receiver");
             if (receiver != null) {
                 site.setReceiver(type(receiver));
-                site.setReceiver_count(Integer.parseInt(search(atts, "receiver_count")));
+                site.setReceiver_count(parseInt(search(atts, "receiver_count")));
             }
             scopes.peek().add(site);
         } else if (qname.equals("regalloc")) {
-            compile.setAttempts(Integer.parseInt(search(atts, "attempts")));
+            compile.setAttempts(parseInt(search(atts, "attempts")));
         } else if (qname.equals("inline_fail")) {
             scopes.peek().last().setReason(search(atts, "reason"));
         } else if (qname.equals("failure")) {
             failureReason = search(atts, "reason");
         } else if (qname.equals("task_done")) {
-            compile.setEnd(Double.parseDouble(search(atts, "stamp")));
-            if (Integer.parseInt(search(atts, "success")) == 0) {
+            compile.setEnd(parseDouble(search(atts, "stamp")));
+            if (parseInt(search(atts, "success")) == 0) {
                 compile.setFailureReason(failureReason);
             }
         } else if (qname.equals("make_not_entrant")) {
             String id = makeId(atts);
             NMethod nm = nmethods.get(id);
             if (nm == null) throw new InternalError();
-            LogEvent e = new MakeNotEntrantEvent(Double.parseDouble(search(atts, "stamp")), id,
+            LogEvent e = new MakeNotEntrantEvent(parseDouble(search(atts, "stamp")), id,
                                                  atts.getValue("zombie") != null, nm);
             events.add(e);
         } else if (qname.equals("uncommon_trap")) {
             String id = atts.getValue("compile_id");
             if (id != null) {
                 id = makeId(atts);
-                currentTrap = new UncommonTrapEvent(Double.parseDouble(search(atts, "stamp")),
+                currentTrap = new UncommonTrapEvent(parseDouble(search(atts, "stamp")),
                         id,
                         atts.getValue("reason"),
                         atts.getValue("action"),
-                        Integer.parseInt(search(atts, "count", "0")));
+                        parseInt(search(atts, "count", "0")));
                 events.add(currentTrap);
             } else {
                 // uncommon trap inserted during parsing.
@@ -377,9 +402,9 @@ public class LogParser extends DefaultHandler implements ErrorHandler, Constants
         } else if (qname.equals("jvms")) {
             // <jvms bci='4' method='java/io/DataInputStream readChar ()C' bytes='40' count='5815' iicount='20815'/>
             if (currentTrap != null) {
-                currentTrap.addJVMS(atts.getValue("method"), Integer.parseInt(atts.getValue("bci")));
+                currentTrap.addJVMS(atts.getValue("method"), parseInt(atts.getValue("bci")));
             } else if (late_inline_scope != null) {
-                bci = Integer.parseInt(search(atts, "bci"));
+                bci = parseInt(search(atts, "bci"));
                 site = new CallSite(bci, method(search(atts, "method")));
                 late_inline_scope.push(site);
             } else {
@@ -389,7 +414,7 @@ public class LogParser extends DefaultHandler implements ErrorHandler, Constants
             }
         } else if (qname.equals("nmethod")) {
             String id = makeId(atts);
-            NMethod nm = new NMethod(Double.parseDouble(search(atts, "stamp")),
+            NMethod nm = new NMethod(parseDouble(search(atts, "stamp")),
                     id,
                     parseLong(atts.getValue("address")),
                     parseLong(atts.getValue("size")));
@@ -413,9 +438,9 @@ public class LogParser extends DefaultHandler implements ErrorHandler, Constants
             }
         } else if (qname.equals("parse_done")) {
             CallSite call = scopes.pop();
-            call.setEndNodes(Integer.parseInt(search(atts, "nodes", "1")));
-            call.setEndLiveNodes(Integer.parseInt(search(atts, "live", "1")));
-            call.setTimeStamp(Double.parseDouble(search(atts, "stamp")));
+            call.setEndNodes(parseInt(search(atts, "nodes", "1")));
+            call.setEndLiveNodes(parseInt(search(atts, "live", "1")));
+            call.setTimeStamp(parseDouble(search(atts, "stamp")));
             scopes.push(call);
         }
     }
