@@ -292,17 +292,18 @@ public class LogParser extends DefaultHandler implements ErrorHandler, Constants
             Phase p = new Phase(search(atts, "name"),
                     parseDouble(search(atts, "stamp")),
                     parseInt(search(atts, "nodes", "0")),
-                    parseInt(search(atts, "live")));
+                    parseInt(search(atts, "live", "-1")));
             phaseStack.push(p);
         } else if (qname.equals("phase_done")) {
             Phase p = phaseStack.pop();
-            if (! p.getId().equals(search(atts, "name"))) {
+            final String search = search(atts, "name", p.getId());
+            if (! p.getId().equals(search)) {
                 System.out.println("phase: " + p.getId());
-                throw new InternalError("phase name mismatch");
+                throw new InternalError("phase name mismatch. Expected ["+p.getId()+"] got ["+search+"]");
             }
             p.setEnd(parseDouble(search(atts, "stamp")));
             p.setEndNodes(parseInt(search(atts, "nodes", "0")));
-            p.setEndLiveNodes(parseInt(search(atts, "live")));
+            p.setEndLiveNodes(parseInt(search(atts, "live", "-1")));
             compile.getPhases().add(p);
         } else if (qname.equals("task")) {
             compile = new Compilation(parseInt(search(atts, "compile_id", "-1")));
