@@ -37,13 +37,14 @@ import org.xml.sax.helpers.*;
 public class LogCompilation extends DefaultHandler implements ErrorHandler, Constants {
 
     public static void usage(int exitcode) {
-        System.out.println("Usage: LogCompilation [ -v ] [ -c ] [ -s ] [ -e | -n ] file1 ...");
+        System.out.println("Usage: LogCompilation [ -v ] [ -c ] [ -s ] [ -e | -n ] [-l locale] file1 ...");
         System.out.println("  -c:   clean up malformed 1.5 xml");
         System.out.println("  -i:   print inlining decisions");
         System.out.println("  -S:   print compilation statistics");
         System.out.println("  -s:   sort events by start time");
         System.out.println("  -e:   sort events by elapsed time");
         System.out.println("  -n:   sort events by name and start");
+        System.out.println("  -l:   locale of the log file (ex: fr_FR, en_US, ...)");
         System.exit(exitcode);
     }
 
@@ -53,7 +54,7 @@ public class LogCompilation extends DefaultHandler implements ErrorHandler, Cons
         boolean printInlining = false;
         boolean cleanup = false;
         int index = 0;
-
+        Locale locale = Locale.getDefault();
         while (args.length > index) {
             if (args[index].equals("-e")) {
                 defaultSort = LogParser.sortByElapsed;
@@ -75,6 +76,10 @@ public class LogCompilation extends DefaultHandler implements ErrorHandler, Cons
             } else if (args[index].equals("-i")) {
                 printInlining = true;
                 index++;
+            } else if (args[index].equals("-l")) {
+                index++;
+                locale = Locale.forLanguageTag(args[index]);
+                index++;
             } else {
                 break;
             }
@@ -85,7 +90,7 @@ public class LogCompilation extends DefaultHandler implements ErrorHandler, Cons
         }
 
         while (index < args.length) {
-            ArrayList<LogEvent> events = LogParser.parse(args[index], cleanup);
+            ArrayList<LogEvent> events = LogParser.parse(args[index], cleanup, locale);
 
             if (statistics) {
                 printStatistics(events, System.out);
